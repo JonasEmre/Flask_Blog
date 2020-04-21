@@ -1,1 +1,2 @@
-# Flask_Blog
+# Nezu Blog Website 
+# Flask Kullanılarak Yapıldı
