@@ -11,7 +11,9 @@ from flask_login import login_user, current_user, logout_user, login_required
 @app.route("/")
 @app.route("/home")
 def home():
-    posts = Post.query.all()
+    page = request.args.get('page', 1, type=int)
+    posts = Post.query.order_by(Post.date_posted.desc()) \
+        .paginate(page=page, per_page=3)
     return render_template("home.html", posts=posts, title="Ana Sayfa")
 
 
@@ -101,6 +103,7 @@ def new_post():
         db.session.add(post)
         db.session.commit()
         flash('Blog paylaştınız', 'success')
+        return redirect(url_for('home'))
     return render_template('new_post.html', title='Yeni Blog',
                            form=form, legend='Yeni Gönderi Oluştur')
 
@@ -141,3 +144,13 @@ def delete_post(post_id):
     db.session.commit()
     flash('Gönderi silindi!', 'success')
     return redirect(url_for('home'))
+
+
+@app.route('/user/<string:username>')
+def user_posts(username):
+    page = request.args.get('page', 1, type=int)
+    user = User.query.filter_by(username=username).first_or_404()
+    posts = Post.query.filter_by(author=user)\
+        .order_by(Post.date_posted.desc()) \
+        .paginate(page=page, per_page=3)
+    return render_template("user_posts.html", posts=posts, title=f"{username}", user=user)
