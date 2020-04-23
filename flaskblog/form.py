@@ -26,7 +26,7 @@ class RegistrationForm(FlaskForm):
     def validate_email(self, email):
         user = User.query.filter_by(email=email.data).first()
         if user:
-            raise ValidationError('E-posta adres daha önce kullanılmış')
+            raise ValidationError('E-posta adresi daha önce kullanılmış')
 
 
 class LoginForm(FlaskForm):
@@ -63,3 +63,21 @@ class PostForm(FlaskForm):
     title = StringField('Başlık', validators=[DataRequired()])
     content = TextAreaField('İçerik', validators=[DataRequired()])
     submit = SubmitField('Yayınla')
+
+
+class RequestResetForm(FlaskForm):
+    email = StringField('E-posta', validators=[DataRequired(),
+                                               Email()])
+    submit = SubmitField('Şifre Yenileme Talep Et')
+    def validate_email(self, email):
+        user = User.query.filter_by(email=email.data).first()
+        if user is None:
+            raise ValidationError('Bu adrese kayıtlı bir hesap yok.')
+
+
+class PasswordResetForm(FlaskForm):
+    password = PasswordField('Şifre', validators=[DataRequired()])
+    confirm_password = PasswordField('Şifreyi Onayla',
+                                     validators=[DataRequired(),
+                                                 EqualTo('password')])
+    submit = SubmitField('Şireyi Güncelle')

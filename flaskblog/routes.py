@@ -2,10 +2,12 @@ import os
 import secrets
 from PIL import Image
 from flask import render_template, url_for, flash, redirect, request, abort
-from flaskblog import app, db, bcrypt
-from flaskblog.form import RegistrationForm, LoginForm, UpdateForm, PostForm
+from flaskblog import app, db, bcrypt, mail
+from flaskblog.form import (RegistrationForm, LoginForm, UpdateForm, PostForm,
+                            RequestResetForm, PasswordResetForm)
 from flaskblog.models import User, Post
 from flask_login import login_user, current_user, logout_user, login_required
+from flask_mail import Message
 
 
 @app.route("/")
@@ -13,7 +15,7 @@ from flask_login import login_user, current_user, logout_user, login_required
 def home():
     page = request.args.get('page', 1, type=int)
     posts = Post.query.order_by(Post.date_posted.desc()) \
-        .paginate(page=page, per_page=3)
+        .paginate(page=page, per_page=4)
     return render_template("home.html", posts=posts, title="Ana Sayfa")
 
 
@@ -150,7 +152,50 @@ def delete_post(post_id):
 def user_posts(username):
     page = request.args.get('page', 1, type=int)
     user = User.query.filter_by(username=username).first_or_404()
-    posts = Post.query.filter_by(author=user)\
+    posts = Post.query.filter_by(author=user) \
         .order_by(Post.date_posted.desc()) \
         .paginate(page=page, per_page=3)
     return render_template("user_posts.html", posts=posts, title=f"{username}", user=user)
+
+
+def send_reset_mail(user):
+    token = user.get_reset_token()
+    msg = Message('Şifre Yenileme Linki', sender='y.emretoktas@gmail.com',
+                  recipients=[user.email])
+    msg.body = f'''Şifre yenileme için aşağıda gönderilen linke basınız.
+    {url_for('reset_password', token=token, _external=True)}
+
+    Eğer bu talebi oluşturmadıysanız görmezden gelebilirsiniz.
+        '''
+    mail.send(msg)
+
+
+@app.route('/reset_password', methods=['GET', 'POST'])
+def reset_request():
+    if current_user.is_authenticated:
+        return redirect(url_for('home'))
+    form = RequestResetForm()
+    if form.validate_on_submit():
+        user = User.query.filter_by(email=form.email.data).first()
+        send_reset_mail(user)
+        flash('Şifre yenileme talebiniz için e-posta adresinize link gönderildi.', 'info')
+        return redirect(url_for('login'))
+    return render_template('reset_request.html', form=form, legend='Şifre Yenileme')
+
+
+@app.route('/reset_password/<token>', methods=['GET', 'POST'])
+def reset_password(token):
+    if current_user.is_authenticated:
+        return redirect(url_for('home'))
+    user = User.verify_reset_token(token)
+    if user is None:
+        flash('Böyle bir kullanıcı yok veya talebin süresi bitmiş', 'warning')
+        return redirect(url_for('reset_request'))
+    form = PasswordResetForm()
+    if form.validate_on_submit():
+        hash_pw = bcrypt.generate_password_hash(form.password.data).decode('utf-8')
+        user.password = hash_pw
+        db.session.commit()
+        flash('Şifre başarılı bir şekilde değiştirildi', 'success')
+        return redirect(url_for('login'))
+    return render_template('request_password.html', form=form, legend='Şifre Yenileme')
